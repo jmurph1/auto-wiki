@@ -23,114 +23,132 @@ jobs:
           python-version: '3.10' # Or '3.11', Sphinx is generally compatible
 
       - name: Setup and Build Sphinx Documentation
+        env: # Environment variables for this step
+          SPHINX_SOURCE_DIR: "_sphinx_doc_source"
+          SPHINX_BUILD_DIR: "_build"
         run: |
+          echo "Starting Sphinx setup and build process..."
           pip install sphinx sphinx-markdown-builder
 
-          SPHINX_SOURCE_DIR="_sphinx_doc_source" # Temporary dir for Sphinx source files
-          SPHINX_BUILD_DIR="_build"             # Temporary dir for Sphinx build output
-          # sphinx-markdown-builder typically outputs to <build_dir>/markdown
+          # Use env variables defined in the 'env:' block for this step
+          echo "Sphinx source directory will be: ${SPHINX_SOURCE_DIR}"
+          echo "Sphinx build directory will be: ${SPHINX_BUILD_DIR}"
+          
+          # Path where sphinx-markdown-builder outputs its files
           SPHINX_MARKDOWN_OUTPUT_DIR="${SPHINX_BUILD_DIR}/markdown"
 
           echo "Creating Sphinx source directory: ${SPHINX_SOURCE_DIR}"
           mkdir -p "${SPHINX_SOURCE_DIR}"
 
-          echo "Creating Sphinx conf.py"
-          python -c "
-import os
-import datetime
-current_year = datetime.date.today().year
-# This configuration assumes your Python source code is in a './src' directory
-# at the root of your repository.
-config_content = f'''
-# conf.py
-import sys
-import os
+          echo "Creating Python script (generate_conf.py) to generate conf.py..."
+          # Using a heredoc to write the Python script to a temporary file.
+          # Note the 'END_OF_PYTHON_SCRIPT' is quoted to prevent shell variable expansion within the script itself.
+          cat << 'END_OF_PYTHON_SCRIPT' > generate_conf.py
+            import os
+            import datetime
 
-# Assuming conf.py is in SPHINX_SOURCE_DIR (e.g., _sphinx_doc_source)
-# and your Python code ('src') is at the root of the repo, parallel to SPHINX_SOURCE_DIR.
-sys.path.insert(0, os.path.abspath('../src'))
+            # This script is run from the repository root.
+            # The SPHINX_SOURCE_DIR_ENV environment variable is expected to be set by the calling shell script.
+            sphinx_conf_dir_path = os.getenv('SPHINX_SOURCE_DIR_ENV') 
+            if not sphinx_conf_dir_path:
+                print('Error: SPHINX_SOURCE_DIR_ENV environment variable not set for Python script generate_conf.py.')
+                exit(1)
 
-project = 'My Project Documentation' # TODO: Customize project name
-copyright = f'{current_year}, Your Name/Org' # TODO: Customize copyright holder
+            current_year = datetime.date.today().year
 
-# Add necessary Sphinx extensions
-extensions = [
-    'sphinx.ext.autodoc',       # Core Sphinx extension for pulling in docs from docstrings
-    'sphinx.ext.napoleon',      # Enables support for Google and NumPy style docstrings
-    'sphinx_markdown_builder',  # Builds Markdown output
-    # 'sphinx.ext.viewcode',    # Optional: Adds links to highlighted source code
-    # 'sphinx.ext.intersphinx', # Optional: Link to other projects' docs
-]
+            # This is the content of the conf.py file that will be generated.
+            config_content = f"""# Generated conf.py
+            import sys
+            import os
 
-# Napoleon settings for Google style docstrings
-napoleon_google_docstring = True
-napoleon_numpy_docstring = False # Set to True if you also use NumPy style
-napoleon_include_init_with_doc = True
-# napoleon_use_param = True # Default is True, explicitly stated for clarity
-# napoleon_use_rtype = True # Default is True
+            # When Sphinx runs this conf.py, its current working directory is where conf.py resides.
+            # So, '../src' correctly points one level up from SPHINX_SOURCE_DIR 
+            # (e.g., _sphinx_doc_source which is sphinx_conf_dir_path)
+            # and then into the 'src' directory at the repository root.
+            sys.path.insert(0, os.path.abspath('../src'))
 
-# HTML theme (not critical for Markdown output but Sphinx needs a theme)
-html_theme = 'alabaster'
+            project = 'My Project Documentation' # TODO: Customize project name
+            copyright = f'{current_year}, Your Name/Org' # TODO: Customize copyright holder
 
-# Optional: If you have a logo
-# html_logo = 'path/to/your/logo.png'
+            extensions = [
+                'sphinx.ext.autodoc',
+                'sphinx.ext.napoleon',
+                'sphinx_markdown_builder',
+            ]
+            napoleon_google_docstring = True
+            napoleon_numpy_docstring = False 
+            html_theme = 'alabaster'
+            exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store'] 
+            """
 
-# Add any custom paths that contain templates here, relative to this directory.
-# templates_path = ['_templates']
+            conf_file_full_path = os.path.join(sphinx_conf_dir_path, 'conf.py')
+            try:
+                # The shell script should have already created sphinx_conf_dir_path with mkdir -p
+                # os.makedirs(sphinx_conf_dir_path, exist_ok=True) # Redundant if shell mkdir -p worked
+                with open(conf_file_full_path, 'w') as f:
+                    f.write(config_content.strip())
+                print(f'Successfully generated Sphinx conf.py at {conf_file_full_path}')
+            except Exception as e:
+                print(f'Error writing conf.py in generate_conf.py: {e}')
+                exit(1)
+            END_OF_PYTHON_SCRIPT
 
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-# This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-'''
-with open(os.path.join('${SPHINX_SOURCE_DIR}', 'conf.py'), 'w') as f:
-    f.write(config_content.strip())
-"
+          echo "Executing Python script (generate_conf.py) to generate conf.py..."
+          # Pass the SPHINX_SOURCE_DIR shell variable as SPHINX_SOURCE_DIR_ENV to the Python script
+          SPHINX_SOURCE_DIR_ENV="${SPHINX_SOURCE_DIR}" python generate_conf.py
+          
+          # Check if the Python script executed successfully
+          if [ $? -ne 0 ]; then
+            echo "Python script generate_conf.py failed."
+            exit 1
+          fi
+          rm generate_conf.py # Clean up the temporary Python script
 
-          echo "Creating Sphinx index.rst"
+          echo "Creating Sphinx index.rst in ${SPHINX_SOURCE_DIR}"
+          # Using a standard heredoc for index.rst content
           cat <<EOL > "${SPHINX_SOURCE_DIR}/index.rst"
-Welcome to My Project's Documentation!
-======================================
+            Welcome to My Project's Documentation!
+            ======================================
+            This documentation is automatically generated from the Google-style docstrings
+            in the Python modules found in the \`./src\` directory.
 
-This documentation is automatically generated from the Google-style docstrings
-in the Python modules found in the \`./src\` directory.
+            .. toctree::
+            :maxdepth: 2
+            :caption: API Reference:
 
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference:
+            api_modules
+            EOL
 
-   api_modules
-EOL
-
-          echo "Creating Sphinx api_modules.rst to list modules from ./src"
-          touch "${SPHINX_SOURCE_DIR}/api_modules.rst" # Ensure file exists
-          echo "API Modules" > "${SPHINX_SOURCE_DIR}/api_modules.rst"
-          echo "===========" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
-          echo "" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+          echo "Creating Sphinx api_modules.rst in ${SPHINX_SOURCE_DIR} to list modules from ./src"
+          API_MODULES_FILE="${SPHINX_SOURCE_DIR}/api_modules.rst"
+          echo "API Modules" > "${API_MODULES_FILE}"
+          echo "===========" >> "${API_MODULES_FILE}"
+          echo "" >> "${API_MODULES_FILE}"
 
           if [ -d "./src" ]; then
             # Find all .py files in ./src, convert their paths to module import strings
-            # e.g., ./src/mypackage/mymodule.py becomes mypackage.mymodule
-            # These modules will be documented by autodoc.
             find ./src -name "*.py" -not -name "__init__.py" | sed -e 's|^\./src/||g' -e 's|\.py$||g' -e 's|/|\.|g' | sort | while read module_path; do
               if [ -n "${module_path}" ]; then # Ensure module_path is not empty
-                echo "Found module for documentation: ${module_path}"
-                echo ".. automodule:: ${module_path}" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
-                echo "   :members:" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
-                echo "   :undoc-members:" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
-                echo "   :show-inheritance:" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
-                echo "" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+                echo "Adding module to api_modules.rst: ${module_path}"
+                echo ".. automodule:: ${module_path}" >> "${API_MODULES_FILE}"
+                echo "   :members:" >> "${API_MODULES_FILE}"
+                echo "   :undoc-members:" >> "${API_MODULES_FILE}"
+                echo "   :show-inheritance:" >> "${API_MODULES_FILE}"
+                echo "" >> "${API_MODULES_FILE}"
               fi
             done
           else
-            echo "Warning: ./src directory not found. No API modules will be documented." >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+            echo "Warning: ./src directory not found. No API modules will be documented." >> "${API_MODULES_FILE}"
           fi
 
           echo "Running Sphinx build (Markdown output)..."
-          # The -M flag is a convenient way to specify the builder and output directory structure.
           # Output will be in ${SPHINX_BUILD_DIR}/markdown/
           sphinx-build -M markdown "${SPHINX_SOURCE_DIR}" "${SPHINX_BUILD_DIR}"
-
+          if [ $? -ne 0 ]; then
+            echo "Sphinx build command failed."
+            exit 1
+          fi
+          
           echo "Listing generated Markdown files in ${SPHINX_MARKDOWN_OUTPUT_DIR}:"
           ls -R "${SPHINX_MARKDOWN_OUTPUT_DIR}" || echo "Sphinx Markdown output directory not found or empty."
 
@@ -165,4 +183,4 @@ EOL
           # This action uses GITHUB_TOKEN by default if permissions: contents:write is set.
           # If GITHUB_TOKEN is insufficient (e.g. cross-repo wiki or specific permission needs),
           # provide a PAT with 'repo' scope.
-          GITHUB_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
