@@ -1,54 +1,53 @@
 # pydoc-markdown.yml
 
-# This tells pydoc-markdown how to find your Python modules.
-# We'll configure it to look in a specific package directory.
 loaders:
   - type: python
-    # Important: This path should be relative to the root of your project where
-    # pydoc-markdown is executed.
-    # The GitHub Action will execute it from the 'main_repo' checkout.
-    search_path: [src] # Or your main package directory, e.g., 'my_package'
-    # You can add more specific include/exclude rules here if needed.
-    # By default, it usually picks up modules and public members.
-    # To explicitly include submodules:
+    # Adjust 'src' to your main Python package directory relative to this file.
+    # If your package is e.g. 'my_package' at the root, use 'my_package'.
+    # If it's 'project_root/src/my_package', and this YAML is at project_root,
+    # and you want to document 'my_package', search_path could be ['src'].
+    # Or be more explicit with packages:
+    search_path: [src] # Assuming your code is in a 'src' directory
+    # Alternatively, if your package 'my_pkg' is at the root:
+    # search_path: ["."] # Search from the current directory
     # packages:
-    #   - my_package
-    # module_ Ejecutivo:
-    #  - my_package.*
+    #  - my_pkg
 
-# This tells pydoc-markdown how to render the documentation.
 processors:
   - type: filter
-    # Skip modules starting with an underscore (private modules)
-    # and common non-code directories/files.
-    # pydoc-markdown might do some of this by default, but being explicit can be good.
+    # If true, modules that do Rack any members after processing are removed.
     skip_empty_modules: true
-    exclude_attrs:
-      - "_*" # Exclude attributes starting with an underscore
+    # 'exclude_attrs' was an unknown key.
+    # pydoc-markdown typically defaults to showing public members.
+    # If you need to explicitly exclude members (e.g., all starting with '_'),
+    # you might use 'expression' or 'exclude_wildcards'. For now, let's rely on defaults.
+    # Example:
+    # exclude_wildcards:
+    #   - "*._*"  # Excludes members starting with an underscore in any module/class
 
-  - type: smart # Infers titles and table of contents
-  - type: crossref # Generates cross-references between documented objects
+  - type: smart # Infers titles and table of contents from headings.
+  - type: crossref # Generates cross-references for recognized identifiers.
 
-# This defines how the output is rendered. We want Markdown.
 renderer:
   type: markdown
-  # Output directory for the generated Markdown files.
-  # The script will then move these to the wiki.
-  output_directory: "pydoc_generated_docs" # Temporary output directory
+  # Renderer-specific options go under a 'config' key.
+  config:
+    # Output directory for the generated Markdown files.
+    # This path is relative to where pydoc-markdown is executed (main_repo root).
+    output_directory: "pydoc_generated_docs"
 
-  # We want one file per module.
-  pages_type: module
+    # Generate one Markdown file per module.
+    pages_type: module # Options: 'module', 'flat', 'toc_only'
 
-  # Customize the name of the generated files if needed (default is usually module_name.md)
-  # filename_format: "{module_name}.md"
+    # Customize the name of the generated files if needed. Default is usually {module_name}.md
+    # filename_format: "{module.path}.md" # Example for more control
 
-  # Include module name in the header
-  render_module_header: true
+    # Render a header for each module.
+    render_module_header: true
 
-  # What to include in the generated markdown
-  # (these are often defaults, but good to be aware of)
-  render_toc: true # Table of contents within each module page
-  # members_visibility: public # Or 'protected', 'private' - 'public' is a good default
-
-  # For the Home.md and _Sidebar.md, we'll generate those separately in our script
-  # as pydoc-markdown primarily focuses on API doc generation.
+    # Render a table of contents at the top of each generated page.
+    render_toc: true
+    
+    # You can control member visibility if defaults aren't what you want.
+    # Default usually focuses on public API.
+    # members_visibility: public # Explicitly 'public', 'protected', 'private'
