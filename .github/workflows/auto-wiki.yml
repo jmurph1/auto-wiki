@@ -84,6 +84,7 @@ jobs:
             except Exception as e:
                 print(f'Error writing conf.py in generate_conf.py: {e}')
                 exit(1)
+
 END_OF_PYTHON_SCRIPT
 # ^^^^^^^^^^^^^^^^^^^^ CRITICAL DELIMITER LINE ABOVE ^^^^^^^^^^^^^^^^^^^^
 # This `END_OF_PYTHON_SCRIPT` delimiter MUST be on a line by itself,
