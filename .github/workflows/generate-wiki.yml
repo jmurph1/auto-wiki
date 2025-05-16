@@ -29,16 +29,45 @@ jobs:
         with:
           python-version: '3.10' # Specify your desired Python version
 
-      - name: Install pydoc-markdown with pipx
+      - name: Install pydoc-markdown with pipx and Verify
         run: |
           python -m pip install --user pipx
-          
-          # Add pipx's bin directory (usually $HOME/.local/bin) to the GITHUB_PATH
-          # This makes executables installed by pipx findable in subsequent steps.
+          # Ensure $HOME/.local/bin is on the PATH and takes precedence
+          # GITHUB_PATH prepends, so this should make our installed versions preferred.
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           
           pipx install pydoc-markdown==4.8.0
-          echo "pydoc-markdown 4.8.0 installed via pipx."
+          echo "--- pydoc-markdown 4.8.0 installation by pipx complete ---"
+          
+          echo "--- Verifying pipx environment ---"
+          pipx list
+          
+          echo "--- Checking $HOME/.local/bin ---"
+          if [ -d "$HOME/.local/bin" ]; then
+            ls -la $HOME/.local/bin
+            echo "Attempting to run $HOME/.local/bin/pydoc-markdown --version:"
+            if [ -f "$HOME/.local/bin/pydoc-markdown" ]; then
+              $HOME/.local/bin/pydoc-markdown --version
+            else
+              echo "$HOME/.local/bin/pydoc-markdown not found."
+            fi
+          else
+            echo "$HOME/.local/bin directory not found."
+          fi
+          
+          echo "--- Checking which pydoc-markdown is found by bash NOW ---"
+          which pydoc-markdown || echo "pydoc-markdown not found by 'which' after adding to GITHUB_PATH"
+
+          echo "--- Checking /opt/pipx_bin (if it exists) ---"
+          if [ -d "/opt/pipx_bin" ]; then
+            ls -la /opt/pipx_bin
+            if [ -f "/opt/pipx_bin/pydoc-markdown" ]; then
+              echo "Version of /opt/pipx_bin/pydoc-markdown:"
+              /opt/pipx_bin/pydoc-markdown --version || echo "Failed to get version from /opt/pipx_bin/pydoc-markdown"
+            fi
+          else
+            echo "/opt/pipx_bin not found."
+          fi
 
       - name: Generate Markdown and Prepare Wiki Content
         working-directory: ./main_repo # Run the script from the main repo's context
