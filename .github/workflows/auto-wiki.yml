@@ -5,45 +5,65 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: write                    # grant write permission to checkouts
+  contents: write # For checking out code, wiki, and pushing to wiki
 
 jobs:
   docs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout the primary codebase
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Run lazydocs to emit Markdown into 'Documentation/'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # Or '3.11', ensure compatibility with lazydocs
+
+      - name: Install build tools and lazydocs
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install lazydocs
+          # Consider pinning lazydocs if you encounter version-specific issues:
+          # pip install lazydocs==<specific_version>
+
       - name: Generate Markdown docs via lazydocs
         run: |
-          pip install lazydocs                 # ensure lazydocs is available
-          rm -rf Documentation                  # clean previous output
+          rm -rf Documentation
+          # Ensure ./src contains your Python package(s) and an __init__.py file.
+          # If 'module test' error persists, check lazydocs --help for exclude options
+          # e.g., lazydocs ./src --output-path=Documentation --ignore-dir ./src/tests
           lazydocs ./src --output-path=Documentation
-        # lazydocs reads all Google-style docstrings and writes GitHub-flavored MD :contentReference[oaicite:3]{index=3}
+          echo "Listing generated documentation files:"
+          ls -R Documentation || echo "Documentation directory not found or empty."
 
-      # 3. Checkout the Wiki repository
       - name: Checkout Wiki repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}.wiki
-          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }} # PAT with 'repo' scope
           path: wiki
 
-      # 4. Copy generated Markdown into the wiki workspace
       - name: Sync docs into wiki
         run: |
-          rsync -av --delete Documentation/ wiki/
+          if [ -d "Documentation" ] && [ -n "$(ls -A Documentation)" ]; then
+            echo "Syncing Documentation/ to wiki/"
+            rsync -av --delete Documentation/ wiki/
+          else
+            echo "Warning: Documentation directory is empty or does not exist. Nothing to sync."
+          fi
+          echo "Listing contents of wiki directory after sync:"
+          ls -R wiki || echo "Wiki directory not found."
 
-      # 5. Publish docs to GitHub Wiki
       - name: Publish to Wiki
         uses: SwiftDocOrg/github-wiki-publish-action@v1
         with:
-          path: "wiki"                        # directory containing MD files
+          path: "wiki"
+          # message: "docs: Automatic wiki update" # Optional: Custom commit message
         env:
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-        # This action commits and pushes the contents of 'wiki/' to the wiki repo :contentReference[oaicite:4]{index=4}
+          # This action uses GITHUB_TOKEN by default if permissions: contents:write is set.
+          # If GITHUB_TOKEN is insufficient (e.g. cross-repo wiki or specific permission needs),
+          # provide a PAT with 'repo' scope.
+          GITHUB_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
