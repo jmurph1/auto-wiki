@@ -30,44 +30,62 @@ jobs:
           python-version: '3.10' # Specify your desired Python version
 
       - name: Install pydoc-markdown with pipx and Verify
+        env:
+          # Explicitly set PIPX_HOME for where pipx stores its environments
+          PIPX_HOME: ${{ runner.temp }}/.pipx_home_user 
+          # Explicitly set PIPX_BIN_DIR to where executables should be linked
+          PIPX_BIN_DIR: /home/runner/.local/bin # Matches your Python script's expectation
         run: |
+          # Install pipx for the user
           python -m pip install --user pipx
-          # Ensure $HOME/.local/bin is on the PATH and takes precedence
-          # GITHUB_PATH prepends, so this should make our installed versions preferred.
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
           
-          pipx install pydoc-markdown==4.8.0
-          echo "--- pydoc-markdown 4.8.0 installation by pipx complete ---"
+          # Add the user's local bin (where pipx itself and its shims will go) to PATH
+          # for THIS script block AND for subsequent steps via GITHUB_PATH.
+          # GITHUB_PATH prepends, which is what we want.
+          echo "${PIPX_BIN_DIR}" >> $GITHUB_PATH
+          export PATH="${PIPX_BIN_DIR}:${PATH}"
           
-          echo "--- Verifying pipx environment ---"
-          pipx list
-          
-          echo "--- Checking $HOME/.local/bin ---"
-          if [ -d "$HOME/.local/bin" ]; then
-            ls -la $HOME/.local/bin
-            echo "Attempting to run $HOME/.local/bin/pydoc-markdown --version:"
-            if [ -f "$HOME/.local/bin/pydoc-markdown" ]; then
-              $HOME/.local/bin/pydoc-markdown --version
-            else
-              echo "$HOME/.local/bin/pydoc-markdown not found."
-            fi
-          else
-            echo "$HOME/.local/bin directory not found."
-          fi
-          
-          echo "--- Checking which pydoc-markdown is found by bash NOW ---"
-          which pydoc-markdown || echo "pydoc-markdown not found by 'which' after adding to GITHUB_PATH"
+          echo "--- Current PATH: $PATH"
+          echo "--- Expected pipx executable location: ${PIPX_BIN_DIR}/pipx"
+          echo "--- Location of 'pipx' command being used: $(which pipx || echo 'pipx not found')"
+          echo "--- PIPX_HOME is set to: $PIPX_HOME"
+          echo "--- PIPX_BIN_DIR is set to: $PIPX_BIN_DIR"
 
-          echo "--- Checking /opt/pipx_bin (if it exists) ---"
-          if [ -d "/opt/pipx_bin" ]; then
-            ls -la /opt/pipx_bin
-            if [ -f "/opt/pipx_bin/pydoc-markdown" ]; then
-              echo "Version of /opt/pipx_bin/pydoc-markdown:"
-              /opt/pipx_bin/pydoc-markdown --version || echo "Failed to get version from /opt/pipx_bin/pydoc-markdown"
+          # Verify pipx installation and ensure it's the user-installed one
+          if ! command -v pipx &> /dev/null || ! pipx --version | grep -q '[0-9]'; then
+            echo "User-installed pipx command not found or not working. Exiting."
+            exit 1
+          fi
+
+          echo "Uninstalling any existing pydoc-markdown managed by this pipx (if any)..."
+          pipx uninstall pydoc-markdown || echo "pydoc-markdown was not previously installed by this pipx, or uninstall failed."
+
+          echo "Installing pydoc-markdown==4.8.0 with user pipx (verbose)..."
+          # The PIPX_HOME and PIPX_BIN_DIR env vars should guide this pipx instance
+          pipx install pydoc-markdown==4.8.0 --verbose
+          
+          echo "--- pydoc-markdown 4.8.0 installation attempt by pipx complete ---"
+          
+          echo "--- Verifying pipx environment post-install ---"
+          pipx list --verbose || echo "pipx list command failed"
+          
+          echo "--- Checking contents of ${PIPX_BIN_DIR} ---"
+          if [ -d "${PIPX_BIN_DIR}" ]; then
+            ls -la "${PIPX_BIN_DIR}"
+            echo "Attempting to run ${PIPX_BIN_DIR}/pydoc-markdown --version (if it exists):"
+            if [ -f "${PIPX_BIN_DIR}/pydoc-markdown" ]; then
+              "${PIPX_BIN_DIR}/pydoc-markdown" --version
+            else
+              echo "${PIPX_BIN_DIR}/pydoc-markdown NOT FOUND. This is the critical issue."
+              exit 1 # Fail the step if our target executable isn't there
             fi
           else
-            echo "/opt/pipx_bin not found."
+            echo "${PIPX_BIN_DIR} directory NOT FOUND."
+            exit 1 # Fail if the bin dir itself is missing
           fi
+          
+          echo "--- Checking which pydoc-markdown is found by bash NOW (should be ours) ---"
+          which pydoc-markdown || echo "pydoc-markdown still not found by 'which' (unexpected)"
 
       - name: Generate Markdown and Prepare Wiki Content
         working-directory: ./main_repo # Run the script from the main repo's context
