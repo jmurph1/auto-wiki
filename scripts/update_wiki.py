@@ -30,7 +30,7 @@ def run_pydoc_markdown():
         # and what to document.
         # We are running this from the root of the main_repo.
         process = subprocess.run(
-            ["pydoc-markdown", "--config", PYDOC_CONFIG_FILE],
+            ["pydoc-markdown", PYDOC_CONFIG_FILE],
             check=True,
             capture_output=True,
             text=True,
