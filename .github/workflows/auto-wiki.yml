@@ -17,13 +17,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install build tools and lazydocs
+      - name: Install build tools and lazydocs from main branch
         run: |
+          python -m pip install --upgrade pip setuptools wheel
           pip install git+https://github.com/ml-tooling/lazydocs.git@main
-          rm -rf Documentation
-          lazydocs ./src --output-path=Documentation
-          echo "Listing generated documentation files:"
-          ls -R Documentation || echo "Documentation directory not found or empty."
+          echo "Verifying lazydocs installation..."
+          pip show lazydocs
+          # Attempt to get version from lazydocs CLI if available
+          lazydocs --version || echo "lazydocs --version command not available or failed"
 
       - name: Checkout Wiki repo
         uses: actions/checkout@v4
