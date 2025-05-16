@@ -1,21 +1,13 @@
-# pydoc-markdown.yml (Ultra-simplified for debugging renderer)
-# Ensure 'src' directory exists in your repo with at least one .py file inside.
-# Example: src/dummy_module.py
-# """This is a dummy module."""
-# def foo():
-#     """This is a dummy function."""
-#     pass
-
+# pydoc-markdown.yml (Test 'render_module_header' and 'pages_type')
 loaders:
   - type: python
-    search_path: [src] # Or whatever your source directory is
+    search_path: [src] # Ensure src/example.py with docstrings exists
 
-processors: # pydoc-markdown might require a non-empty processors list
-  - type: smart # A common, basic processor
+processors:
+  - type: smart
 
 renderer:
   type: markdown
-  output_directory: "pydoc_generated_docs"
-  # pages_type: module # Comment out other keys for now
-  # render_module_header: true
-  # render_toc: true
+  # output_directory: "pydoc_generated_docs" # Keep problematic key commented out for now
+  render_module_header: false # Default is true, let's try to set it to false
+  pages_type: module # This was also previously an "Unknown key" with output_directory
