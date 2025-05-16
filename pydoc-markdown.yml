@@ -1,16 +1,15 @@
-# pydoc-markdown.yml (For testing with pydoc-markdown v4.8.2)
+# pydoc-markdown.yml (Test multiple boolean keys and pages_type: MODULE)
 loaders:
   - type: python
-    search_path: [src] # Ensure src/example.py (or your actual code) exists
+    search_path: [src] # Ensure src/ has your test.py with docstrings
 
 processors:
-  - type: smart        # For basic processing
-  - type: crossref     # If you want cross-references
+  - type: smart
 
 renderer:
   type: markdown
-  # Let's see if these are all accepted by v4.8.2
-  render_module_header: true   # Set as desired (true is often default)
-  pages_type: MODULE         # Using uppercase, which seemed to help for enum-like values
-  output_directory: "pydoc_generated_docs"
-  render_toc: true             # Table of contents within each module page
+  render_module_header: false # This was previously accepted
+  render_toc: false           # Testing another boolean (default is true)
+  descriptive_toc: true       # Testing another boolean (default is false)
+  pages_type: MODULE          # Still trying to get this Enum recognized
+  # output_directory: "pydoc_generated_docs" # Keep the main problem child commented for this test
