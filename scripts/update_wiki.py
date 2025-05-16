@@ -21,32 +21,61 @@ WIKI_API_SUBDIR = "api" # Subdirectory in the wiki for generated module docs
 def run_pydoc_markdown():
     """Runs pydoc-markdown to generate Markdown files."""
     print("Running pydoc-markdown...")
+
+    # ---- Start: Verify pydoc-markdown executable ----
+    pydoc_executable_path = shutil.which("pydoc-markdown")
+    if not pydoc_executable_path:
+        print("CRITICAL ERROR: pydoc-markdown command not found in PATH.")
+        raise FileNotFoundError("pydoc-markdown command not found. Ensure it's installed and on the PATH.")
+    
+    print(f"Found pydoc-markdown executable at: {pydoc_executable_path}")
+    
+    # Check if the path seems to be the pipx one (this is a heuristic)
+    home_dir = os.path.expanduser("~")
+    expected_pipx_path_fragment_1 = os.path.join(home_dir, ".local", "bin", "pydoc-markdown")
+    expected_pipx_path_fragment_2 = os.path.join(home_dir, ".pyenv", "shims", "pydoc-markdown") # If pyenv is used with pipx
+    expected_pipx_path_fragment_3 = "pipx/bin/pydoc-markdown" # Another common pipx structure
+
+    if not (pydoc_executable_path == expected_pipx_path_fragment_1 or \
+            pydoc_executable_path == expected_pipx_path_fragment_2 or \
+            expected_pipx_path_fragment_3 in pydoc_executable_path):
+        print(f"WARNING: The pydoc-markdown executable at '{pydoc_executable_path}' "
+              f"might not be the one installed by pipx into '{expected_pipx_path_fragment_1}' or similar. "
+              "This could lead to version or configuration mismatches.")
+    # ---- End: Verify pydoc-markdown executable ----
+
     try:
         # Ensure the output directory for pydoc-markdown is clean or non-existent
         if os.path.exists(PYDOC_OUTPUT_DIR):
             shutil.rmtree(PYDOC_OUTPUT_DIR)
 
-        # The pydoc-markdown.yml should handle the output directory configuration
-        # and what to document.
-        # We are running this from the root of the main_repo.
+        print(f"Executing: {pydoc_executable_path} {PYDOC_CONFIG_FILE} from cwd: {MAIN_REPO_ROOT}")
         process = subprocess.run(
-            ["pydoc-markdown", PYDOC_CONFIG_FILE],
+            [pydoc_executable_path, PYDOC_CONFIG_FILE], # Use the resolved absolute path
             check=True,
             capture_output=True,
             text=True,
-            cwd=MAIN_REPO_ROOT # Ensure pydoc-markdown runs in the context of the main repo root
+            cwd=MAIN_REPO_ROOT
         )
         print("pydoc-markdown execution successful.")
-        print(process.stdout)
+        if process.stdout:
+            print(f"pydoc-markdown stdout:\n{process.stdout}")
+        # Warnings from pydoc-markdown go to stderr, so always print it if it exists.
         if process.stderr:
             print(f"pydoc-markdown stderr:\n{process.stderr}")
+
     except subprocess.CalledProcessError as e:
-        print(f"Error during pydoc-markdown execution: {e}")
-        print(f"Stdout: {e.stdout}")
-        print(f"Stderr: {e.stderr}")
+        print(f"Error during pydoc-markdown execution (CalledProcessError):")
+        print(f"  Command: {' '.join(e.cmd)}")
+        print(f"  Return code: {e.returncode}")
+        print(f"  Stdout:\n{e.stdout}")
+        print(f"  Stderr:\n{e.stderr}")
         raise
-    except FileNotFoundError:
-        print("Error: pydoc-markdown command not found. Is it installed and in PATH?")
+    except FileNotFoundError: # Should be caught by shutil.which check now, but good for defense
+        print(f"CRITICAL ERROR: Failed to find pydoc-markdown executable at '{pydoc_executable_path}'.")
+        raise
+    except Exception as e:
+        print(f"An unexpected error occurred during pydoc-markdown execution: {e}")
         raise
 
 def clear_wiki_api_directory(wiki_repo_path):
