@@ -1,0 +1,49 @@
+name: Generate & Publish Wiki Docs
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write                    # grant write permission to checkouts
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout the primary codebase
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # 2. Run lazydocs to emit Markdown into 'Documentation/'
+      - name: Generate Markdown docs via lazydocs
+        run: |
+          pip install lazydocs                 # ensure lazydocs is available
+          rm -rf Documentation                  # clean previous output
+          lazydocs ./src --output-path=Documentation
+        # lazydocs reads all Google-style docstrings and writes GitHub-flavored MD :contentReference[oaicite:3]{index=3}
+
+      # 3. Checkout the Wiki repository
+      - name: Checkout Wiki repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}.wiki
+          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          path: wiki
+
+      # 4. Copy generated Markdown into the wiki workspace
+      - name: Sync docs into wiki
+        run: |
+          rsync -av --delete Documentation/ wiki/
+
+      # 5. Publish docs to GitHub Wiki
+      - name: Publish to Wiki
+        uses: SwiftDocOrg/github-wiki-publish-action@v1
+        with:
+          path: "wiki"                        # directory containing MD files
+        env:
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+        # This action commits and pushes the contents of 'wiki/' to the wiki repo :contentReference[oaicite:4]{index=4}
