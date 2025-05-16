@@ -24,45 +24,19 @@ jobs:
           path: wiki_repo # Checkout wiki into 'wiki_repo' directory
           # Default GITHUB_TOKEN with permissions.contents: write is sufficient here
 
-      - name: Set up Python
+      - name: Set up Python and Install Dependencies
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Specify your desired Python version
+          python-version: '3.10' # Or your project's Python version
 
-      - name: Install pydoc-markdown with pipx and Verify
-        env:
-          # Explicitly set PIPX_HOME for where pipx stores its environments
-          PIPX_HOME: ${{ runner.temp }}/.pipx_home_user 
-          # Explicitly set PIPX_BIN_DIR to where executables should be linked
-          PIPX_BIN_DIR: /home/runner/.local/bin # Matches your Python script's expectation
+      - name: Install pydoc-markdown and other dependencies
         run: |
-          # Install pipx for the user
-          python -m pip install --user pipx
-          
-          # Add the user's local bin (where pipx itself and its shims will go) to PATH
-          # for THIS script block AND for subsequent steps via GITHUB_PATH.
-          # GITHUB_PATH prepends, which is what we want.
-          echo "${PIPX_BIN_DIR}" >> $GITHUB_PATH
-          export PATH="${PIPX_BIN_DIR}:${PATH}"
-          
-          echo "--- Current PATH: $PATH"
-          echo "--- Expected pipx executable location: ${PIPX_BIN_DIR}/pipx"
-          echo "--- Location of 'pipx' command being used: $(which pipx || echo 'pipx not found')"
-          echo "--- PIPX_HOME is set to: $PIPX_HOME"
-          echo "--- PIPX_BIN_DIR is set to: $PIPX_BIN_DIR"
-
-          # Verify pipx installation and ensure it's the user-installed one
-          if ! command -v pipx &> /dev/null || ! pipx --version | grep -q '[0-9]'; then
-            echo "User-installed pipx command not found or not working. Exiting."
-            exit 1
-          fi
-
-          echo "Uninstalling any existing pydoc-markdown managed by this pipx (if any)..."
-          pipx uninstall pydoc-markdown || echo "pydoc-markdown was not previously installed by this pipx, or uninstall failed."
-
-          echo "Installing pydoc-markdown==4.8.0 with user pipx (verbose)..."
-          # The PIPX_HOME and PIPX_BIN_DIR env vars should guide this pipx instance
-          pipx install pydoc-markdown==4.8.2 --verbose
+          python -m pip install --upgrade pip
+          pip install pydoc-markdown==4.8.2
+          # Add any other pip install commands for other dependencies your script might need
+          echo "pydoc-markdown==4.8.2 installed as a library."
+          echo "Installed pydoc-markdown version:"
+          pip show pydoc-markdown # Verify it's installed in this environment
           
           echo "--- pydoc-markdown 4.8.0 installation attempt by pipx complete ---"
           

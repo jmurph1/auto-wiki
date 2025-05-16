@@ -1,186 +1,218 @@
 # scripts/update_wiki.py
 import os
 import shutil
-import subprocess
-import glob
 import sys
+from pathlib import Path # For using Path objects with pydoc-markdown
+
+# --- pydoc-markdown Library Imports ---
+from pydoc_markdown import PydocMarkdown, PythonLoader
+from pydoc_markdown.contrib.processors import SmartProcessor # A common and useful processor
+# You might want to import other processors if you used them in your YAML, e.g.:
+# from pydoc_markdown.contrib.processors.filter import FilterProcessor
+from pydoc_markdown.contrib.renderers.markdown import MarkdownRenderer, PagesType
 
 # --- Configuration ---
-# These paths will be relative to the root of the main_repo checkout in GitHub Actions
-MAIN_REPO_ROOT = os.getcwd() # Script is expected to be run from the root of main_repo
-PYDOC_CONFIG_FILE = os.path.join(MAIN_REPO_ROOT, "pydoc-markdown.yml")
-PYDOC_OUTPUT_DIR = os.path.join(MAIN_REPO_ROOT, "pydoc_generated_docs") # Matches renderer.output_directory
+# MAIN_REPO_ROOT will be the current working directory when the script is run from main_repo in GHA
+MAIN_REPO_ROOT = os.getcwd()
+# PYDOC_OUTPUT_DIR is where pydoc-markdown will generate the Markdown files
+PYDOC_OUTPUT_DIR = os.path.join(MAIN_REPO_ROOT, "pydoc_generated_docs")
+# WIKI_API_SUBDIR is the subdirectory in your GitHub Wiki where the generated API docs will be placed
+WIKI_API_SUBDIR = "api"
 
-# These paths will be relative to where the script is run, but point to the checked-out locations
-# We'll receive the wiki repo path as an argument for clarity
-# WIKI_REPO_PATH comes from GHA workflow: ../wiki_repo relative to main_repo
-# So, if script is in main_repo/scripts, WIKI_REPO_PATH would be ../../wiki_repo from script's perspective
 
-WIKI_API_SUBDIR = "api" # Subdirectory in the wiki for generated module docs
+def run_pydoc_markdown_programmatic():
+    """
+    Configures and runs pydoc-markdown programmatically to generate Markdown documentation.
+    """
+    print(f"Starting programmatic pydoc-markdown generation...")
+    print(f"Source code (search_path) expected relative to: {MAIN_REPO_ROOT}")
+    print(f"Temporary Markdown output will be in: {Path(PYDOC_OUTPUT_DIR).resolve()}")
 
-def run_pydoc_markdown():
-    """Runs pydoc-markdown to generate Markdown files."""
-    print("Running pydoc-markdown...")
+    # Ensure the temporary output directory for pydoc-markdown is clean before generation.
+    # The renderer itself will create the directory.
+    if os.path.exists(PYDOC_OUTPUT_DIR):
+        print(f"Cleaning up existing temporary output directory: {PYDOC_OUTPUT_DIR}")
+        shutil.rmtree(PYDOC_OUTPUT_DIR)
 
-    # ---- Start: Explicitly target our pipx-installed pydoc-markdown ----
-    home_dir = os.path.expanduser("~") # Gets /home/runner in GitHub Actions
-    # This is where 'pipx install pydoc-markdown==4.8.0' should place the executable link
-    expected_pipx_executable_path = os.path.join(home_dir, ".local", "bin", "pydoc-markdown")
-    
-    print(f"Attempting to use pydoc-markdown specifically from: {expected_pipx_executable_path}")
+    # Initialize PydocMarkdown
+    pm = PydocMarkdown()
 
-    if not os.path.exists(expected_pipx_executable_path):
-        print(f"CRITICAL ERROR: The expected pydoc-markdown at '{expected_pipx_executable_path}' DOES NOT EXIST.")
-        print("This means 'pipx install pydoc-markdown==4.8.0' might have failed to place the executable correctly, or pipx uses a different bin path.")
-        print("Please check the 'Install pydoc-markdown with pipx' step logs carefully.")
-        
-        # As a fallback, try finding pydoc-markdown on PATH, but this is not ideal
-        print("Falling back to finding pydoc-markdown on system PATH via shutil.which()...")
-        pydoc_executable_to_run = shutil.which("pydoc-markdown")
-        if not pydoc_executable_to_run:
-            raise FileNotFoundError("pydoc-markdown command not found anywhere, and the expected pipx version is also missing.")
-        print(f"Fallback pydoc-markdown found at: {pydoc_executable_to_run} (This may cause version/config issues if it's not 4.8.0)")
-    else:
-        pydoc_executable_to_run = expected_pipx_executable_path
-        print(f"Successfully targeted pydoc-markdown at: {pydoc_executable_to_run}")
-    # ---- End: Explicitly target ----
+    # 1. Configure Loaders
+    # This tells pydoc-markdown where to find your Python source code.
+    # Adjust 'search_path' if your code is not in a 'src' directory at the repo root.
+    # For example, if your package 'my_package' is directly at the root: search_path=["my_package"]
+    # Or, to be very specific about packages: pm.loaders = [PythonLoader(packages=["my_package_name"])]
+    pm.loaders = [
+        PythonLoader(search_path=["src"])  # IMPORTANT: Ensure 'src' contains your Python package(s)
+    ]
 
+    # 2. Configure Processors
+    # Processors modify the documentation data after loading.
+    # SmartProcessor is good for inferring titles and TOCs.
+    pm.processors = [
+        SmartProcessor(),
+        # Add other processors if needed, e.g., for filtering:
+        # FilterProcessor(skip_empty_modules=True, documented_only=True)
+    ]
+
+    # 3. Configure Renderer
+    # This is where you define how the Markdown is generated.
+    pm.renderer = MarkdownRenderer(
+        # --- Core Parameters for Output and Structure ---
+        output_directory=Path(PYDOC_OUTPUT_DIR), # Must be a pathlib.Path object
+        pages_type=PagesType.MODULE,             # Generates one .md file per module
+
+        # --- Fine-tuning Markdown Output (adjust as per your preference) ---
+        render_module_header=False, # Set to True if you want "Module `module_name`" headers
+        render_toc=True,            # Set to True to include a Table of Contents in each module file
+        descriptive_toc=False,      # Set to True for more descriptive TOC entries (default is False)
+        # filename_suffix=".md",    # Default is ".md"
+        # ... explore other MarkdownRenderer parameters if needed ...
+    )
+
+    print("pydoc-markdown configured. Starting .render() process...")
     try:
-        # Ensure the output directory for pydoc-markdown is clean or non-existent
-        if os.path.exists(PYDOC_OUTPUT_DIR):
-            shutil.rmtree(PYDOC_OUTPUT_DIR)
-
-        # Make sure pydoc-markdown can find your pydoc-markdown.yml
-        # PYDOC_CONFIG_FILE should be an absolute path or relative to MAIN_REPO_ROOT
-        absolute_config_path = os.path.abspath(PYDOC_CONFIG_FILE)
-        print(f"Executing: {pydoc_executable_to_run} {absolute_config_path} (from cwd: {MAIN_REPO_ROOT})")
-        
-        process = subprocess.run(
-            [pydoc_executable_to_run, absolute_config_path], # Use the targeted executable and absolute config path
-            check=True,
-            capture_output=True,
-            text=True,
-            cwd=MAIN_REPO_ROOT # Run pydoc-markdown from the root of your main repository
-        )
-        print("pydoc-markdown execution successful.")
-        if process.stdout: # stdout might be empty if only warnings are produced
-            print(f"pydoc-markdown stdout:\n{process.stdout}")
-        if process.stderr: # Always print stderr as it contains warnings or errors
-            print(f"pydoc-markdown stderr:\n{process.stderr}")
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error during pydoc-markdown execution (CalledProcessError):")
-        print(f"  Command: {' '.join(e.cmd)}")
-        print(f"  Return code: {e.returncode}")
-        print(f"  Stdout:\n{e.stdout}")
-        print(f"  Stderr:\n{e.stderr}")
-        raise
-    except FileNotFoundError: # Should be caught by earlier checks, but good for defense
-        print(f"CRITICAL ERROR: Failed to find the targeted pydoc-markdown executable at '{pydoc_executable_to_run}'.")
-        raise
+        pm.render()
+        print("pydoc-markdown .render() completed successfully.")
+        if not os.path.exists(PYDOC_OUTPUT_DIR) or not os.listdir(PYDOC_OUTPUT_DIR):
+            print(f"Warning: pydoc-markdown .render() completed but '{PYDOC_OUTPUT_DIR}' is missing or empty.")
+        else:
+            print(f"Generated files in '{PYDOC_OUTPUT_DIR}': {os.listdir(PYDOC_OUTPUT_DIR)}")
+            
     except Exception as e:
-        print(f"An unexpected error occurred during pydoc-markdown execution: {type(e).__name__} - {e}")
-        raise
+        print(f"Error during pydoc-markdown pm.render(): {type(e).__name__} - {e}")
+        # Uncomment for more detailed traceback during debugging:
+        # import traceback
+        # traceback.print_exc()
+        raise # Re-raise the exception to fail the script if render fails
 
-def clear_wiki_api_directory(wiki_repo_path):
-    """Clears the WIKI_API_SUBDIR in the wiki to remove stale files."""
+
+def clear_wiki_api_directory(wiki_repo_path: str):
+    """Clears the WIKI_API_SUBDIR in the wiki to remove stale auto-generated files."""
     wiki_api_path = os.path.join(wiki_repo_path, WIKI_API_SUBDIR)
     print(f"Clearing wiki API directory: {wiki_api_path}")
     if os.path.exists(wiki_api_path):
         shutil.rmtree(wiki_api_path)
-    os.makedirs(wiki_api_path, exist_ok=True)
+    os.makedirs(wiki_api_path, exist_ok=True) # Ensure directory exists for copying
 
-def copy_generated_docs_to_wiki(wiki_repo_path):
-    """Copies generated Markdown files from PYDOC_OUTPUT_DIR to the wiki's API subdirectory."""
-    wiki_api_path = os.path.join(wiki_repo_path, WIKI_API_SUBDIR)
-    print(f"Copying generated docs from {PYDOC_OUTPUT_DIR} to {wiki_api_path}...")
+
+def copy_generated_docs_to_wiki(wiki_repo_path: str) -> list[str]:
+    """
+    Copies generated Markdown files from PYDOC_OUTPUT_DIR to the wiki's API subdirectory.
+    Returns a list of copied markdown file names (without path).
+    """
+    wiki_api_target_path = os.path.join(wiki_repo_path, WIKI_API_SUBDIR)
+    print(f"Copying generated docs from '{PYDOC_OUTPUT_DIR}' to '{wiki_api_target_path}'...")
 
     if not os.path.exists(PYDOC_OUTPUT_DIR):
         print(f"Error: pydoc-markdown output directory '{PYDOC_OUTPUT_DIR}' not found. No docs to copy.")
-        return [] # Return empty list if no docs generated
+        return []
 
-    copied_module_files = []
+    copied_file_names = []
+    # Ensure PYDOC_OUTPUT_DIR itself is not empty
+    if not os.listdir(PYDOC_OUTPUT_DIR):
+        print(f"Warning: pydoc-markdown output directory '{PYDOC_OUTPUT_DIR}' is empty.")
+        return []
+
     for item_name in os.listdir(PYDOC_OUTPUT_DIR):
         source_item_path = os.path.join(PYDOC_OUTPUT_DIR, item_name)
         if os.path.isfile(source_item_path) and item_name.endswith(".md"):
-            target_item_path = os.path.join(wiki_api_path, item_name)
+            target_item_path = os.path.join(wiki_api_target_path, item_name)
             shutil.copy2(source_item_path, target_item_path)
-            copied_module_files.append(item_name)
-            print(f"Copied: {item_name}")
+            copied_file_names.append(item_name)
+            print(f"Copied: {item_name} to {wiki_api_target_path}")
     
-    if not copied_module_files:
-        print("No .md files found in pydoc-markdown output to copy.")
-    return copied_module_files
+    if not copied_file_names:
+        print("No .md files were found in the pydoc-markdown output to copy.")
+    return copied_file_names
 
 
-def generate_wiki_home(wiki_repo_path, module_files):
+def generate_wiki_home(wiki_repo_path: str, module_file_names: list[str]):
     """Generates Home.md with a list of documented modules."""
     home_md_path = os.path.join(wiki_repo_path, "Home.md")
     print(f"Generating {home_md_path}...")
 
     content = "# Project Documentation\n\n"
     content += "Welcome to the project documentation wiki. This wiki is auto-generated from the Google-style docstrings in the Python code.\n\n"
-    content += "## Modules\n\n"
+    content += "## API Modules\n\n"
 
-    if module_files:
-        for module_file in sorted(module_files):
-            module_name = module_file.replace(".md", "")
-            # Link to the page in the api subdirectory
-            content += f"* [{module_name}]({WIKI_API_SUBDIR}/{module_file})\n"
+    if module_file_names:
+        for module_filename in sorted(module_file_names): # Sort for consistent order
+            module_name = module_filename[:-3] # Remove .md extension
+            # Link to the page within the WIKI_API_SUBDIR
+            content += f"* [{module_name}]({WIKI_API_SUBDIR}/{module_filename})\n"
     else:
-        content += "No modules have been documented yet.\n"
+        content += "No API modules have been documented yet, or no documentation files were generated.\n"
 
-    with open(home_md_path, "w") as f:
+    with open(home_md_path, "w", encoding="utf-8") as f:
         f.write(content)
     print(f"{home_md_path} generated.")
 
-def generate_wiki_sidebar(wiki_repo_path, module_files):
-    """Generates _Sidebar.md with a list of documented modules."""
+
+def generate_wiki_sidebar(wiki_repo_path: str, module_file_names: list[str]):
+    """Generates _Sidebar.md with a list of documented modules for wiki navigation."""
     sidebar_md_path = os.path.join(wiki_repo_path, "_Sidebar.md")
     print(f"Generating {sidebar_md_path}...")
 
-    content = "**Modules**\n\n"
-    if module_files:
-        for module_file in sorted(module_files):
-            module_name = module_file.replace(".md", "")
-            # Link to the page in the api subdirectory
-            content += f"* [{module_name}]({WIKI_API_SUBDIR}/{module_file})\n"
+    # Sidebar content often starts with a link to Home
+    content = f"* [Home](Home.md)\n\n**API Modules**\n\n"
+    if module_file_names:
+        for module_filename in sorted(module_file_names): # Sort for consistent order
+            module_name = module_filename[:-3] # Remove .md extension
+            # Link to the page within the WIKI_API_SUBDIR
+            content += f"* [{module_name}]({WIKI_API_SUBDIR}/{module_filename})\n"
     else:
-        content += "No modules documented.\n"
+        content += "No API modules documented.\n"
 
-    with open(sidebar_md_path, "w") as f:
+    with open(sidebar_md_path, "w", encoding="utf-8") as f:
         f.write(content)
     print(f"{sidebar_md_path} generated.")
 
-def main(wiki_repo_abs_path):
-    print(f"Starting wiki update process. Wiki repo path: {wiki_repo_abs_path}")
-    
-    # 1. Generate Markdown from source code using pydoc-markdown
-    run_pydoc_markdown()
 
-    # 2. Clear the target API directory in the wiki
+def main(wiki_repo_abs_path: str):
+    """Main function to orchestrate the wiki generation process."""
+    print(f"Starting wiki update process. Wiki repo absolute path: {wiki_repo_abs_path}")
+    
+    # 1. Generate Markdown from source code using pydoc-markdown programmatically
+    # This will output files to PYDOC_OUTPUT_DIR
+    try:
+        run_pydoc_markdown_programmatic()
+    except Exception as e:
+        print(f"Halting script due to error in pydoc-markdown generation: {e}")
+        sys.exit(1) # Exit if pydoc generation fails
+
+    # 2. Clear the target API directory in the wiki (e.g., wiki_repo/api/)
     clear_wiki_api_directory(wiki_repo_abs_path)
 
     # 3. Copy newly generated docs to the wiki's API subdirectory
     #    and get a list of the generated module markdown file names.
-    generated_module_md_files = copy_generated_docs_to_wiki(wiki_repo_abs_path)
+    generated_md_files = copy_generated_docs_to_wiki(wiki_repo_abs_path)
 
-    if not generated_module_md_files:
-        print("No module documentation was generated or copied. Home.md and _Sidebar.md will reflect this.")
+    if not generated_md_files:
+        print("Warning: No module documentation files were copied to the wiki. Home.md and _Sidebar.md will reflect this.")
     
-    # 4. Generate Home.md
-    generate_wiki_home(wiki_repo_abs_path, generated_module_md_files)
+    # 4. Generate Home.md for the wiki
+    generate_wiki_home(wiki_repo_abs_path, generated_md_files)
 
-    # 5. Generate _Sidebar.md
-    generate_wiki_sidebar(wiki_repo_abs_path, generated_module_md_files)
+    # 5. Generate _Sidebar.md for the wiki
+    generate_wiki_sidebar(wiki_repo_abs_path, generated_md_files)
 
-    print("Wiki generation script finished.")
+    print("Wiki generation script finished successfully.")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python update_wiki.py <path_to_wiki_repo>")
+        print("Usage: python update_wiki.py <absolute_path_to_wiki_repo_checkout>")
+        print("Example: python scripts/update_wiki.py \"${{ github.workspace }}/wiki_repo\"")
         sys.exit(1)
     
     # The GitHub Action will provide an absolute path to the wiki_repo checkout
-    wiki_path_arg = sys.argv[1]
-    main(wiki_path_arg)
+    # (e.g., /home/runner/work/my-repo/my-repo/wiki_repo)
+    wiki_checkout_path_arg = sys.argv[1]
+    
+    # Perform a basic check on the path
+    if not os.path.isdir(wiki_checkout_path_arg):
+        print(f"Error: Provided wiki repo path is not a valid directory: {wiki_checkout_path_arg}")
+        sys.exit(1)
+        
+    main(wiki_checkout_path_arg)
