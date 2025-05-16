@@ -1,13 +1,16 @@
-# pydoc-markdown.yml (Test 'render_module_header' and 'pages_type')
+# pydoc-markdown.yml (For testing with pydoc-markdown v4.8.2)
 loaders:
   - type: python
-    search_path: [src] # Ensure src/example.py with docstrings exists
+    search_path: [src] # Ensure src/example.py (or your actual code) exists
 
 processors:
-  - type: smart
+  - type: smart        # For basic processing
+  - type: crossref     # If you want cross-references
 
 renderer:
   type: markdown
-  # output_directory: "pydoc_generated_docs" # Keep problematic key commented out for now
-  render_module_header: false # Default is true, let's try to set it to false
-  pages_type: module # This was also previously an "Unknown key" with output_directory
+  # Let's see if these are all accepted by v4.8.2
+  render_module_header: true   # Set as desired (true is often default)
+  pages_type: MODULE         # Using uppercase, which seemed to help for enum-like values
+  output_directory: "pydoc_generated_docs"
+  render_toc: true             # Table of contents within each module page

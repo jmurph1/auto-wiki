@@ -62,7 +62,7 @@ jobs:
 
           echo "Installing pydoc-markdown==4.8.0 with user pipx (verbose)..."
           # The PIPX_HOME and PIPX_BIN_DIR env vars should guide this pipx instance
-          pipx install pydoc-markdown==4.8.0 --verbose
+          pipx install pydoc-markdown==4.8.2 --verbose
           
           echo "--- pydoc-markdown 4.8.0 installation attempt by pipx complete ---"
           
