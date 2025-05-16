@@ -1,0 +1,54 @@
+# pydoc-markdown.yml
+
+# This tells pydoc-markdown how to find your Python modules.
+# We'll configure it to look in a specific package directory.
+loaders:
+  - type: python
+    # Important: This path should be relative to the root of your project where
+    # pydoc-markdown is executed.
+    # The GitHub Action will execute it from the 'main_repo' checkout.
+    search_path: [src] # Or your main package directory, e.g., 'my_package'
+    # You can add more specific include/exclude rules here if needed.
+    # By default, it usually picks up modules and public members.
+    # To explicitly include submodules:
+    # packages:
+    #   - my_package
+    # module_ Ejecutivo:
+    #  - my_package.*
+
+# This tells pydoc-markdown how to render the documentation.
+processors:
+  - type: filter
+    # Skip modules starting with an underscore (private modules)
+    # and common non-code directories/files.
+    # pydoc-markdown might do some of this by default, but being explicit can be good.
+    skip_empty_modules: true
+    exclude_attrs:
+      - "_*" # Exclude attributes starting with an underscore
+
+  - type: smart # Infers titles and table of contents
+  - type: crossref # Generates cross-references between documented objects
+
+# This defines how the output is rendered. We want Markdown.
+renderer:
+  type: markdown
+  # Output directory for the generated Markdown files.
+  # The script will then move these to the wiki.
+  output_directory: "pydoc_generated_docs" # Temporary output directory
+
+  # We want one file per module.
+  pages_type: module
+
+  # Customize the name of the generated files if needed (default is usually module_name.md)
+  # filename_format: "{module_name}.md"
+
+  # Include module name in the header
+  render_module_header: true
+
+  # What to include in the generated markdown
+  # (these are often defaults, but good to be aware of)
+  render_toc: true # Table of contents within each module page
+  # members_visibility: public # Or 'protected', 'private' - 'public' is a good default
+
+  # For the Home.md and _Sidebar.md, we'll generate those separately in our script
+  # as pydoc-markdown primarily focuses on API doc generation.

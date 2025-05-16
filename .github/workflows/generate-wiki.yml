@@ -1,0 +1,66 @@
+name: Generate and Update Wiki
+
+on:
+  push:
+    branches:
+      - main # Or your default branch, e.g., master
+
+jobs:
+  build_and_update_wiki:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allows actions/checkout to push to the wiki of the same repo
+
+    steps:
+      - name: Checkout Main Repo
+        uses: actions/checkout@v4
+        with:
+          path: main_repo # Checkout main repo into 'main_repo' directory
+
+      - name: Checkout Wiki Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki_repo # Checkout wiki into 'wiki_repo' directory
+          # Default GITHUB_TOKEN with permissions.contents: write is sufficient here
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # Specify your desired Python version
+
+      - name: Install pydoc-markdown
+        run: |
+          python -m pip install --upgrade pip
+          pip install pydoc-markdown # You might want to pin a version: pydoc-markdown==4.x.y
+
+      - name: Generate Markdown and Prepare Wiki Content
+        working-directory: ./main_repo # Run the script from the main repo's context
+        run: |
+          # The script expects the absolute path to the wiki_repo as an argument
+          # GITHUB_WORKSPACE is the root of the checkout space
+          python scripts/update_wiki.py "${{ github.workspace }}/wiki_repo"
+        env:
+          # Any other environment variables your script might need can go here
+          # For example, if you made PYDOC_CONFIG_FILE configurable via env var
+          PYTHONIOENCODING: "UTF-8" # Good practice for string handling
+
+      - name: Commit and Push to Wiki
+        working-directory: ./wiki_repo # Operate within the wiki_repo directory
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com" # Standard GH Actions bot email
+          
+          # Check if there are changes to commit
+          # `git status --porcelain` outputs machine-readable status. If it's empty, no changes.
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add .
+            git commit -m "Automated wiki generation from main branch [skip ci]"
+            echo "Pushing changes to wiki..."
+            git push
+            echo "Wiki updated and pushed."
+          else
+            echo "No changes to commit to the wiki."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Explicitly pass, though often available by default
