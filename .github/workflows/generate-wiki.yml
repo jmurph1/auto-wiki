@@ -32,7 +32,9 @@ jobs:
       - name: Install pydoc-markdown
         run: |
           python -m pip install --user pipx
-          pipx install pydoc-markdown 
+          pipx install pydoc-markdown==4.8.0 # Pin the version
+          echo "Pydoc-markdown version:"
+          pip show pydoc-markdown # Display the installed version
 
       - name: Generate Markdown and Prepare Wiki Content
         working-directory: ./main_repo # Run the script from the main repo's context
