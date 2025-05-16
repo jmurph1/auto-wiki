@@ -1,4 +1,4 @@
-name: Generate & Publish Wiki Docs
+name: Generate & Publish Wiki Docs with Sphinx
 
 on:
   push:
@@ -15,31 +15,143 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Fetches all history, useful for some doc generators
 
-      - name: Install build tools and lazydocs from main branch
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # Or '3.11', Sphinx is generally compatible
+
+      - name: Setup and Build Sphinx Documentation
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install git+https://github.com/ml-tooling/lazydocs.git@main
-          echo "Verifying lazydocs installation..."
-          pip show lazydocs
-          # Attempt to get version from lazydocs CLI if available
-          lazydocs --version || echo "lazydocs --version command not available or failed"
+          pip install sphinx sphinx-markdown-builder
+
+          SPHINX_SOURCE_DIR="_sphinx_doc_source" # Temporary dir for Sphinx source files
+          SPHINX_BUILD_DIR="_build"             # Temporary dir for Sphinx build output
+          # sphinx-markdown-builder typically outputs to <build_dir>/markdown
+          SPHINX_MARKDOWN_OUTPUT_DIR="${SPHINX_BUILD_DIR}/markdown"
+
+          echo "Creating Sphinx source directory: ${SPHINX_SOURCE_DIR}"
+          mkdir -p "${SPHINX_SOURCE_DIR}"
+
+          echo "Creating Sphinx conf.py"
+          python -c "
+import os
+import datetime
+current_year = datetime.date.today().year
+# This configuration assumes your Python source code is in a './src' directory
+# at the root of your repository.
+config_content = f'''
+# conf.py
+import sys
+import os
+
+# Assuming conf.py is in SPHINX_SOURCE_DIR (e.g., _sphinx_doc_source)
+# and your Python code ('src') is at the root of the repo, parallel to SPHINX_SOURCE_DIR.
+sys.path.insert(0, os.path.abspath('../src'))
+
+project = 'My Project Documentation' # TODO: Customize project name
+copyright = f'{current_year}, Your Name/Org' # TODO: Customize copyright holder
+
+# Add necessary Sphinx extensions
+extensions = [
+    'sphinx.ext.autodoc',       # Core Sphinx extension for pulling in docs from docstrings
+    'sphinx.ext.napoleon',      # Enables support for Google and NumPy style docstrings
+    'sphinx_markdown_builder',  # Builds Markdown output
+    # 'sphinx.ext.viewcode',    # Optional: Adds links to highlighted source code
+    # 'sphinx.ext.intersphinx', # Optional: Link to other projects' docs
+]
+
+# Napoleon settings for Google style docstrings
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False # Set to True if you also use NumPy style
+napoleon_include_init_with_doc = True
+# napoleon_use_param = True # Default is True, explicitly stated for clarity
+# napoleon_use_rtype = True # Default is True
+
+# HTML theme (not critical for Markdown output but Sphinx needs a theme)
+html_theme = 'alabaster'
+
+# Optional: If you have a logo
+# html_logo = 'path/to/your/logo.png'
+
+# Add any custom paths that contain templates here, relative to this directory.
+# templates_path = ['_templates']
+
+# List of patterns, relative to source directory, that match files and
+# directories to ignore when looking for source files.
+# This pattern also affects html_static_path and html_extra_path.
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+'''
+with open(os.path.join('${SPHINX_SOURCE_DIR}', 'conf.py'), 'w') as f:
+    f.write(config_content.strip())
+"
+
+          echo "Creating Sphinx index.rst"
+          cat <<EOL > "${SPHINX_SOURCE_DIR}/index.rst"
+Welcome to My Project's Documentation!
+======================================
+
+This documentation is automatically generated from the Google-style docstrings
+in the Python modules found in the \`./src\` directory.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference:
+
+   api_modules
+EOL
+
+          echo "Creating Sphinx api_modules.rst to list modules from ./src"
+          touch "${SPHINX_SOURCE_DIR}/api_modules.rst" # Ensure file exists
+          echo "API Modules" > "${SPHINX_SOURCE_DIR}/api_modules.rst"
+          echo "===========" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+          echo "" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+
+          if [ -d "./src" ]; then
+            # Find all .py files in ./src, convert their paths to module import strings
+            # e.g., ./src/mypackage/mymodule.py becomes mypackage.mymodule
+            # These modules will be documented by autodoc.
+            find ./src -name "*.py" -not -name "__init__.py" | sed -e 's|^\./src/||g' -e 's|\.py$||g' -e 's|/|\.|g' | sort | while read module_path; do
+              if [ -n "${module_path}" ]; then # Ensure module_path is not empty
+                echo "Found module for documentation: ${module_path}"
+                echo ".. automodule:: ${module_path}" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+                echo "   :members:" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+                echo "   :undoc-members:" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+                echo "   :show-inheritance:" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+                echo "" >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+              fi
+            done
+          else
+            echo "Warning: ./src directory not found. No API modules will be documented." >> "${SPHINX_SOURCE_DIR}/api_modules.rst"
+          fi
+
+          echo "Running Sphinx build (Markdown output)..."
+          # The -M flag is a convenient way to specify the builder and output directory structure.
+          # Output will be in ${SPHINX_BUILD_DIR}/markdown/
+          sphinx-build -M markdown "${SPHINX_SOURCE_DIR}" "${SPHINX_BUILD_DIR}"
+
+          echo "Listing generated Markdown files in ${SPHINX_MARKDOWN_OUTPUT_DIR}:"
+          ls -R "${SPHINX_MARKDOWN_OUTPUT_DIR}" || echo "Sphinx Markdown output directory not found or empty."
 
       - name: Checkout Wiki repo
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}.wiki
           token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }} # PAT with 'repo' scope
-          path: wiki
+          path: wiki # Checkout the wiki into a 'wiki' subdirectory
 
-      - name: Sync docs into wiki
+      - name: Sync Sphinx docs into wiki
         run: |
-          if [ -d "Documentation" ] && [ -n "$(ls -A Documentation)" ]; then
-            echo "Syncing Documentation/ to wiki/"
-            rsync -av --delete Documentation/ wiki/
+          # This path must match where sphinx-build -M markdown outputs files
+          SPHINX_MARKDOWN_OUTPUT_DIR="_build/markdown" 
+
+          if [ -d "${SPHINX_MARKDOWN_OUTPUT_DIR}" ] && [ -n "$(ls -A ${SPHINX_MARKDOWN_OUTPUT_DIR})" ]; then
+            echo "Syncing Sphinx Markdown output from ${SPHINX_MARKDOWN_OUTPUT_DIR}/ to wiki/"
+            # --exclude='.buildinfo' is important as Sphinx creates this metadata file
+            rsync -av --delete --exclude='.buildinfo' "${SPHINX_MARKDOWN_OUTPUT_DIR}/" wiki/
           else
-            echo "Warning: Documentation directory is empty or does not exist. Nothing to sync."
+            echo "Warning: Sphinx Markdown output directory is empty or does not exist. Nothing to sync."
           fi
           echo "Listing contents of wiki directory after sync:"
           ls -R wiki || echo "Wiki directory not found."
@@ -47,6 +159,10 @@ jobs:
       - name: Publish to Wiki
         uses: SwiftDocOrg/github-wiki-publish-action@v1
         with:
-          path: "wiki"
+          path: "wiki" # Directory containing the Markdown files to publish
+          # message: "docs: Automatic Sphinx wiki update via GitHub Actions" # Optional: Custom commit message
         env:
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          # This action uses GITHUB_TOKEN by default if permissions: contents:write is set.
+          # If GITHUB_TOKEN is insufficient (e.g. cross-repo wiki or specific permission needs),
+          # provide a PAT with 'repo' scope.
+          GITHUB_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
