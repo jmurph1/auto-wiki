@@ -42,48 +42,48 @@ jobs:
           # The 'cat' command below ends with '> generate_conf.py'.
           # The Python script ('import os' etc.) MUST start on the NEXT line.
           cat << 'END_OF_PYTHON_SCRIPT' > generate_conf.py
-import os
-import datetime
+          import os
+            import datetime
 
-# This script is run from the repository root.
-# The SPHINX_SOURCE_DIR_ENV environment variable is expected to be set 
-# by the calling shell script (the 'run:' block in the GitHub Action).
-sphinx_conf_dir_path = os.getenv('SPHINX_SOURCE_DIR_ENV') 
-if not sphinx_conf_dir_path:
-    print('Error: SPHINX_SOURCE_DIR_ENV environment variable not set for Python script generate_conf.py.')
-    exit(1)
+            # This script is run from the repository root.
+            # The SPHINX_SOURCE_DIR_ENV environment variable is expected to be set 
+            # by the calling shell script (the 'run:' block in the GitHub Action).
+            sphinx_conf_dir_path = os.getenv('SPHINX_SOURCE_DIR_ENV') 
+            if not sphinx_conf_dir_path:
+                print('Error: SPHINX_SOURCE_DIR_ENV environment variable not set for Python script generate_conf.py.')
+                exit(1)
 
-current_year = datetime.date.today().year
+            current_year = datetime.date.today().year
 
-config_content = f"""# Generated conf.py
-import sys
-import os
+            config_content = f"""# Generated conf.py
+            import sys
+            import os
 
-sys.path.insert(0, os.path.abspath('../src'))
+            sys.path.insert(0, os.path.abspath('../src'))
 
-project = 'My Project Documentation' # TODO: Customize project name
-copyright = f'{current_year}, Your Name/Org' # TODO: Customize copyright holder
+            project = 'My Project Documentation' # TODO: Customize project name
+            copyright = f'{current_year}, Your Name/Org' # TODO: Customize copyright holder
 
-extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinx_markdown_builder',
-]
-napoleon_google_docstring = True
-napoleon_numpy_docstring = False 
-html_theme = 'alabaster'
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store'] 
-"""
+            extensions = [
+                'sphinx.ext.autodoc',
+                'sphinx.ext.napoleon',
+                'sphinx_markdown_builder',
+            ]
+            napoleon_google_docstring = True
+            napoleon_numpy_docstring = False 
+            html_theme = 'alabaster'
+            exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store'] 
+            """
 
-conf_file_full_path = os.path.join(sphinx_conf_dir_path, 'conf.py')
-try:
-    os.makedirs(sphinx_conf_dir_path, exist_ok=True) 
-    with open(conf_file_full_path, 'w') as f:
-        f.write(config_content.strip())
-    print(f'Successfully generated Sphinx conf.py at {conf_file_full_path}')
-except Exception as e:
-    print(f'Error writing conf.py in generate_conf.py: {e}')
-    exit(1)
+            conf_file_full_path = os.path.join(sphinx_conf_dir_path, 'conf.py')
+            try:
+                os.makedirs(sphinx_conf_dir_path, exist_ok=True) 
+                with open(conf_file_full_path, 'w') as f:
+                    f.write(config_content.strip())
+                print(f'Successfully generated Sphinx conf.py at {conf_file_full_path}')
+            except Exception as e:
+                print(f'Error writing conf.py in generate_conf.py: {e}')
+                exit(1)
 END_OF_PYTHON_SCRIPT
 # ^^^^^^^^^^^^^^^^^^^^ CRITICAL DELIMITER LINE ABOVE ^^^^^^^^^^^^^^^^^^^^
 # This `END_OF_PYTHON_SCRIPT` delimiter MUST be on a line by itself,
