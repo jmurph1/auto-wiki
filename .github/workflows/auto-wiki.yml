@@ -5,63 +5,58 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: write            # needed for checkout & push
+  contents: write
 
 jobs:
   docs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout the codebase
+      # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # 2. Install Pydoc-Markdown
+      # 2. Install Pydoc-Markdown via pipx
       - name: Install Pydoc-Markdown
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install pipx
-          pipx install pydoc-markdown        # installs latest pydoc-markdown :contentReference[oaicite:5]{index=5}
+          python -m pip install --upgrade pip                            :contentReference[oaicite:3]{index=3}
+          python -m pip install pipx                                      :contentReference[oaicite:4]{index=4}
+          pipx install pydoc-markdown                                     :contentReference[oaicite:5]{index=5}
 
-      # 3. Create pydoc-markdown config
-      - name: Write pydoc-markdown.yml
+      # 3. Generate Markdown docs
+      - name: Generate Markdown via Pydoc-Markdown
         run: |
-          cat << 'EOF' > pydoc-markdown.yml
-          loaders:
-            - type: python
-              search_path: .
-          processors: []
-          renderers:
-            - type: markdown
-              output: Documentation       # generated docs go here :contentReference[oaicite:6]{index=6}
-          EOF
+          rm -rf Documentation && mkdir Documentation
+          # Single-file approach:
+          pydoc-markdown -I . -p src \
+            '{ renderer: { type: markdown, filename: "Documentation/api.md" } }'
+          # OR, multiple-file approach:
+          # for module in $(find src -name '*.py' -not -name '__init__.py' \
+          #                 | sed -e 's|^src/||' -e 's|\.py$||' -e 's|/|.|g'); do
+          #   pydoc-markdown -I . -m "$module" '{ renderer: { type: markdown } }' \
+          #     > "Documentation/${module}.md"
+          # done                                                      :contentReference[oaicite:6]{index=6}:contentReference[oaicite:7]{index=7}
 
-      # 4. Generate Markdown docs
-      - name: Run Pydoc-Markdown
-        run: |
-          rm -rf Documentation            # clean old docs
-          pydoc-markdown                  # renders modules under src/ into Documentation/ :contentReference[oaicite:7]{index=7}
-
-      # 5. Checkout the Wiki repository
+      # 4. Checkout the Wiki repo
       - name: Checkout Wiki repo
         uses: actions/checkout@v3
         with:
           repository: ${{ github.repository }}.wiki
           token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          path: wiki
+          path: wiki                                          :contentReference[oaicite:8]{index=8}
 
-      # 6. Sync docs into wiki workspace
+      # 5. Sync docs into wiki (mirror deletes too)
       - name: Sync docs into wiki
         run: |
-          rsync -av --delete Documentation/ wiki/   # mirror docs :contentReference[oaicite:8]{index=8}
-          ls -R wiki/
+          rsync -av --delete Documentation/ wiki/                :contentReference[oaicite:9]{index=9}
+          ls -R wiki/                                            :contentReference[oaicite:10]{index=10}
 
-      # 7. Publish to GitHub Wiki
+      # 6. Publish to Wiki
       - name: Publish to Wiki
         uses: SwiftDocOrg/github-wiki-publish-action@v1
         with:
-          path: "wiki"                              # action reads wiki/ :contentReference[oaicite:9]{index=9}
+          path: "wiki"                                         :contentReference[oaicite:11]{index=11}
         env:
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
