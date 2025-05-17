@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x' # Or specify your desired Python version e.g., '3.10'
+          python-version: '3.10' 
 
       - name: Install build tools and lazydocs from main branch
         run: |
@@ -69,7 +69,7 @@ jobs:
           echo "Verifying lazydocs executable and version immediately before use:"
           which lazydocs || echo "WARNING: lazydocs command not found in PATH right before generation"
           lazydocs --version || echo "WARNING: lazydocs --version command failed right before generation"
-          
+
           lazydocs ./src --output-path=Documentation 
 
           echo "--- lazydocs generation command finished ---"
