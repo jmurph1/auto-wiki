@@ -1,0 +1,67 @@
+name: Generate & Publish Wiki Docs
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write            # needed for checkout & push
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout the codebase
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # 2. Install Pydoc-Markdown
+      - name: Install Pydoc-Markdown
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pipx
+          pipx install pydoc-markdown        # installs latest pydoc-markdown :contentReference[oaicite:5]{index=5}
+
+      # 3. Create pydoc-markdown config
+      - name: Write pydoc-markdown.yml
+        run: |
+          cat << 'EOF' > pydoc-markdown.yml
+          loaders:
+            - type: python
+              search_path: .
+          processors: []
+          renderers:
+            - type: markdown
+              output: Documentation       # generated docs go here :contentReference[oaicite:6]{index=6}
+          EOF
+
+      # 4. Generate Markdown docs
+      - name: Run Pydoc-Markdown
+        run: |
+          rm -rf Documentation            # clean old docs
+          pydoc-markdown                  # renders modules under src/ into Documentation/ :contentReference[oaicite:7]{index=7}
+
+      # 5. Checkout the Wiki repository
+      - name: Checkout Wiki repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}.wiki
+          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          path: wiki
+
+      # 6. Sync docs into wiki workspace
+      - name: Sync docs into wiki
+        run: |
+          rsync -av --delete Documentation/ wiki/   # mirror docs :contentReference[oaicite:8]{index=8}
+          ls -R wiki/
+
+      # 7. Publish to GitHub Wiki
+      - name: Publish to Wiki
+        uses: SwiftDocOrg/github-wiki-publish-action@v1
+        with:
+          path: "wiki"                              # action reads wiki/ :contentReference[oaicite:9]{index=9}
+        env:
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
