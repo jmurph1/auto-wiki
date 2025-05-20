@@ -31,7 +31,7 @@ jobs:
           rm -rf Documentation && mkdir Documentation
           # Single-file approach:
           pydoc-markdown -I . -p src \
-            '{ renderer: { type: markdown, filename: "Documentation/api.md" } }'
+            '{ renderer: { type: markdown, filename: "Documentation/Home.md" } }'
           # OR, multiple-file approach:
           # for module in $(find src -name '*.py' -not -name '__init__.py' \
           #                 | sed -e 's|^src/||' -e 's|\.py$||' -e 's|/|.|g'); do
@@ -55,6 +55,7 @@ jobs:
       # 6. Publish to Wiki
       - name: Publish to Wiki
         run: |
+          cd wiki/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
