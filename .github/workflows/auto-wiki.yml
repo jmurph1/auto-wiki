@@ -44,7 +44,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: ${{ github.repository }}.wiki
-          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           path: wiki                                          
 
       # 5. Sync docs into wiki (mirror deletes too)
@@ -55,8 +54,9 @@ jobs:
 
       # 6. Publish to Wiki
       - name: Publish to Wiki
-        uses: SwiftDocOrg/github-wiki-publish-action@v1
-        with:
-          path: "wiki" 
-        env:
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Auto Wiki Generated"
+          git push
