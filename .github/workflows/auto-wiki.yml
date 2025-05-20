@@ -49,7 +49,7 @@ jobs:
       # 5. Sync docs into wiki (mirror deletes too)
       - name: Sync docs into wiki
         run: |
-          rsync -av --delete Documentation/ wiki/ 
+          rsync -av Documentation/ wiki/ 
           ls -R wiki/
 
       # 6. Publish to Wiki
