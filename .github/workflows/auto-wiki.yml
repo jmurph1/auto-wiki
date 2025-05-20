@@ -29,10 +29,12 @@ jobs:
       - name: Generate Markdown via Pydoc-Markdown
         run: |
           rm -rf Documentation && mkdir Documentation
-          # Single-file approach:
-          pydoc-markdown -I . -p src \
-            '{ renderer: { type: markdown, filename: "Documentation/Home.md" } }'
-          # OR, multiple-file approach:
+
+          # Single-file approach [-I == Path to search in, -p == Package to document]:
+          # Home.md is the default page of the Github native wiki (so it is overwritten each time)
+          pydoc-markdown '{ renderer: { type: markdown, filename: "Documentation/Home.md" } }'
+          
+            # OR, multiple-file approach? (Not tested yet):
           # for module in $(find src -name '*.py' -not -name '__init__.py' \
           #                 | sed -e 's|^src/||' -e 's|\.py$||' -e 's|/|.|g'); do
           #   pydoc-markdown -I . -m "$module" '{ renderer: { type: markdown } }' \
@@ -46,7 +48,7 @@ jobs:
           repository: ${{ github.repository }}.wiki
           path: wiki                                          
 
-      # 5. Sync docs into wiki (mirror deletes too)
+      # 5. Sync docs into wiki 
       - name: Sync docs into wiki
         run: |
           rsync -av Documentation/ wiki/ 
