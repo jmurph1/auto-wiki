@@ -1,6 +1,7 @@
 # auto-wiki
 Automatically generate Python documentation for any Github repo. The current implementation uses the ['pydoc-markdown'](https://github.com/NiklasRosenstein/pydoc-markdown) tool to synthesize all Python docstrings (any style, e.g. Google, Sphinx, etc.) found in a directory into an organized Markdown file. The workflow then pushes the changes directly to the Github native wiki for your repo.
-** Notes: **
+
+*** Notes: ***
 1. Github offers a free native wiki for any *public* repo. (A paid Github account is required to enable the wiki in private repos.)
 2. To enable the native wiki for a repo, you must have admin privileges for that repo.
 3. To instantiate the wiki, simply go to the **'Settings'** tab in the main toolbar (the toolbar directly below the Github icon/ your username, etc.), scroll down a bit and you should see it as the first item under **'Features'**.
