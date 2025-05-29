@@ -33,7 +33,11 @@ jobs:
           # Single-file approach [-I == Path to search in, -p == Package to document]:
           # Home.md is the default page of the Github native wiki (so it is overwritten each time)
           pydoc-markdown -I . -p src \
-            '{ renderer: { type: markdown, filename: "Documentation/Home.md" } }'
+            '{ renderer: { type: markdown, 
+                           descriptive_class_title: false,
+                           add_module_prefix: false,
+                           add_method_class_prefix: true,
+                           filename: "Documentation/Home.md" } }'
           
             # OR, multiple-file approach? (Not tested yet):
           # for module in $(find src -name '*.py' -not -name '__init__.py' \
