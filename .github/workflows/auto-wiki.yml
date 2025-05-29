@@ -36,7 +36,6 @@ jobs:
             '{ renderer: { type: markdown, 
                            descriptive_class_title: false,
                            add_module_prefix: false,
-                           add_method_class_prefix: true,
                            filename: "Documentation/Home.md" } }'
           
             # OR, multiple-file approach? (Not tested yet):
